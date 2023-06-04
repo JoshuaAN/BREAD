@@ -100,8 +100,10 @@ class Solver:
             return np.array(symbolic_jacobian.evalf(subs=vars)).astype('float64')
         
         iteration = 0
+
+        delta = 5
         
-        while True:
+        for i in range(10):
             c_e = equality(x)
             c_i = inequality(x)
 
@@ -110,50 +112,61 @@ class Solver:
 
             g = gradient_f(x)
             H = hessian_L(x, y, z)
-
-            # Convergence test
-            if (
-              max(
-                infinity_norm(g - A_e.T @ y - A_i.T @ z),
-                infinity_norm(c_e)
-              ) < 1e-6):
-                break
-
-            # Regularize Hessian if not positive definite.
-            beta = 1e-3
-            tau = None
-            min_dia = min(np.diag(H))
-            if (min_dia > 0):
-                tau = 0
-            else:
-                tau = -min_dia + beta
-            while True:
-                B = H + tau * np.identity(rows(x))
-                if (min(np.linalg.eig(B)[0]) > 0):
-                    break
-                else:
-                    print(tau)
-                    tau = max(10 * tau, beta)
-            H = B
-
-            # Solve quadratic subproblem
-            # 
-            #        min ½xᵀHx + xᵀg
-            # subject to Aₑx + cₑ = 0
-            #            Aᵢx + cᵢ > 0
-
-            # print(A_e.shape)
-            # print("----------------------------------------")
-            # print(A_e @ np.linalg.lstsq(A_e, np.zeros((16, 1)))[0])
-            # print("----------------------------------------")
             
-            p, y, z, = solve_qp(H, g, A_e, A_i, c_e, c_i, np.zeros((rows(x), 1)))
+            # Solve trust region subproblem
+            # 
+            #          min ½pᵀHp + pᵀg
+            #           p
+            #   subject to Ap + c = 0
+            #              |p|₂ < Δ
 
-            x += p
+            # Solve with Powell's dog leg method. 
+            # 
+            #          min |Av + c|₂²
+            #           v
+            #   subject to |p|₂ < ηΔ
+            # 
+            # https://en.wikipedia.org/wiki/Powell%27s_dog_leg_method
+
+            # Trust region scaling factor η
+            eta = 0.8
+
+            # Add regularization matrix to resolve rank deficiency in A.
+            delta_gn = np.linalg.solve(1e-9 * np.identity(rows(x)) + A_e.T @ A_e, -A_e.T @ c_e)
+            delta_sd = -A_e.T @ c_e
+            t = np.linalg.norm(delta_sd, ord=2) / np.linalg.norm(A_e @ delta_sd, ord=2)
+            v = None
+
+            # If Gauss-Newton step is within the trust region, accept it.
+            if np.linalg.norm(delta_gn) < eta * delta:
+                v = delta_gn
+            elif np.linalg.norm(t * delta_sd) > eta * delta:
+                v = 0.8 * delta * delta_sd / np.linalg.norm(delta_sd)
+            else:
+                # Dogleg step
+                # 
+                #   |t𝛿_sd + s(𝛿_gn - t𝛿_sd)|₂ = ηΔ
+                #   |t𝛿_sd + s(𝛿_gn - t𝛿_sd)|₂² = (ηΔ)²
+                #   (t𝛿_sd + s(𝛿_gn - t𝛿_sd))ᵀ(t𝛿_sd + s(𝛿_gn - t𝛿_sd)) = (ηΔ)²
+                #   s²|𝛿_gn - t𝛿_sd|₂² + 2s(t𝛿_sd)ᵀ(𝛿_gn - t𝛿_sd) + |t𝛿_sd|₂² = (ηΔ)²
+                # 
+                # This is a quadratic function
+                # 
+                #   As² + Bs + C = 0
+                #   A = |𝛿_gn - t𝛿_sd|₂²
+                #   B = 2(t𝛿_sd)ᵀ(𝛿_gn - t𝛿_sd)
+                #   C = |t𝛿_sd|₂² - (ηΔ)²
+                A = np.linalg.norm(delta_gn - t * delta_sd, ord=2)
+                B = 2 * np.dot(t * delta_sd, delta_gn - t * delta_sd)
+                C = np.linalg.norm(t * delta_sd, ord=2) - (eta * delta) ** 2
+                s = (-B + sqrt(B * B - 4 * A * C)) / (2 * A)
+                v = delta_sd + s * (delta_gn - t * delta_sd)
+
+            print("Constraint residual: ", np.linalg.norm(A_e @ v + c_e))
+            
+            x += v
 
             print("ITERATION ", iteration)
             print("x: \n", x)
-            # print("H: \n", hessian_L(x, y, z))
-            # print("Eigenvalues: \n", np.linalg.eig(hessian_L(x, y, z))[0])
 
             iteration += 1
