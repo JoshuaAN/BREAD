@@ -2,6 +2,7 @@ from sympy import *
 import numpy as np
 from qp_solver import *
 import scipy
+from math import *
 
 class Solver:
     def __init__(self):
@@ -101,9 +102,9 @@ class Solver:
         
         iteration = 0
 
-        delta = 5
+        delta = 10
         
-        for i in range(10):
+        for i in range(20):
             c_e = equality(x)
             c_i = inequality(x)
 
@@ -137,11 +138,17 @@ class Solver:
             t = np.linalg.norm(delta_sd, ord=2) / np.linalg.norm(A_e @ delta_sd, ord=2)
             v = None
 
+            print("sd step: \n", delta_sd)
+
             # If Gauss-Newton step is within the trust region, accept it.
             if np.linalg.norm(delta_gn) < eta * delta:
+                print("Gauss-Newton step")
                 v = delta_gn
             elif np.linalg.norm(t * delta_sd) > eta * delta:
-                v = 0.8 * delta * delta_sd / np.linalg.norm(delta_sd)
+                v = eta * delta * delta_sd / np.linalg.norm(delta_sd)
+                print("A_e: ", A_e)
+                print("c_e: ", c_e)
+                print("v norm: ", np.linalg.norm(v))
             else:
                 # Dogleg step
                 # 
@@ -157,8 +164,11 @@ class Solver:
                 #   B = 2(t𝛿_sd)ᵀ(𝛿_gn - t𝛿_sd)
                 #   C = |t𝛿_sd|₂² - (ηΔ)²
                 A = np.linalg.norm(delta_gn - t * delta_sd, ord=2)
-                B = 2 * np.dot(t * delta_sd, delta_gn - t * delta_sd)
+                B = 2 * ((t * delta_sd).T @ (delta_gn - t * delta_sd))[0, 0]
                 C = np.linalg.norm(t * delta_sd, ord=2) - (eta * delta) ** 2
+                print("A: ", A)
+                print("B: ", B)
+                print("C: ", C)
                 s = (-B + sqrt(B * B - 4 * A * C)) / (2 * A)
                 v = delta_sd + s * (delta_gn - t * delta_sd)
 
