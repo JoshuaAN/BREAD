@@ -1,7 +1,6 @@
 from sympy import *
 import numpy as np
 from qp_solver import *
-import scipy
 from math import *
 
 class Solver:
