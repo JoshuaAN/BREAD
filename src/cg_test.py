@@ -4,6 +4,7 @@ import time
 from solver.ldlt import LDLT
 import cProfile
 from pstats import Stats, SortKey
+import random
 
 def positive_definite_no_trust_region():
     print("POSITIVE DEFINITE NO TRUST REGION ------------")
@@ -11,7 +12,7 @@ def positive_definite_no_trust_region():
     N = 1000
 
     H = np.random.rand(N, N)
-    H = H.T @ H + np.identity(N)
+    H = H.T @ H
     g = np.random.rand(N, 1)
     A = np.random.rand(int(N / 2), N)
     x0 = np.random.rand(N, 1)
@@ -75,4 +76,4 @@ def indefinite_trust_region():
     print("Exact x: \n", sol)
 
 positive_definite_no_trust_region()
-indefinite_trust_region()
+# indefinite_trust_region()

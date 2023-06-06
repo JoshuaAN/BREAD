@@ -1,6 +1,7 @@
 from sympy import *
 import numpy as np
 from math import *
+from solver.projected_conjugate_gradient import projected_cg
 
 def rows(mat):
     return mat.shape[0]
@@ -103,9 +104,9 @@ class Solver:
         
         iteration = 0
 
-        delta = 10
+        delta = 0.5
         
-        for i in range(200):
+        for i in range(40):
             c_e = equality(x)
             c_i = inequality(x)
 
@@ -165,14 +166,9 @@ class Solver:
                 v = delta_sd + s * (delta_gn - t * delta_sd)
 
             # Projected CG method
+            p_x = projected_cg(H, g, A_e, delta, v)
             
-
-            lhs = np.vstack((np.hstack((np.identity(rows(x)), A_e.T)), np.hstack((A_e, np.zeros((rows(y), rows(y)))))))
-            rhs = np.vstack((-g, A_e @ v))
-
-            p_x = np.linalg.solve(lhs, rhs)[0:rows(x)]
-            
-            x += 0.1 * p_x
+            x += p_x
 
             print("ITERATION ", iteration)
             print("x: \n", x)

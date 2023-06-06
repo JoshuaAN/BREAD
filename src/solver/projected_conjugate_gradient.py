@@ -25,7 +25,7 @@ def projected_cg(H, g, A, delta, x0):
 
     iterations = 0
 
-    while ((r.T @ g)[0, 0] > 1e-16 and iterations < (n_vars - n_constraints)):
+    while ((r.T @ g)[0, 0] > 1e-20 and iterations < (n_vars - n_constraints)):
         tmp = (p.T @ H @ p)[0, 0]
         absOld = (r.T @ g)[0, 0]
         # Check for negative curvature
@@ -45,11 +45,11 @@ def projected_cg(H, g, A, delta, x0):
             A = (p.T @ p)[0, 0]
             B = 2 * (x.T @ p)[0, 0]
             C = (x.T @ x)[0, 0] - delta * delta
-            print(np.linalg.norm(x))
             tau = (-B + sqrt(B * B - 4 * A * C)) / (2 * A)
             return x + tau * p
         alpha = absOld / tmp
         if (np.linalg.norm(x + alpha * p) >= delta):
+            # Same quadratic formulation as negative curvature end condition
             A = (p.T @ p)[0, 0]
             B = 2 * (x.T @ p)[0, 0]
             C = (x.T @ x)[0, 0] - delta * delta
