@@ -1,9 +1,9 @@
 import numpy as np
-from scipy.linalg import cho_factor, cho_solve
 from solver.ldlt import LDLT
+from math import *
 
 def projected_cg(H, g, A, delta, x0):
-    # Profiling show majority of time is spent in LDLT solves
+    # Profiling showed majority of time is spent in LDLT solves
 
     n_constraints = A.shape[0]
     n_vars = x0.shape[0]
@@ -25,15 +25,43 @@ def projected_cg(H, g, A, delta, x0):
 
     iterations = 0
 
-    while ((r.T @ g)[0, 0] > 1e-12 and iterations < (n_vars - n_constraints)):
-        tmp = (r.T @ g)[0, 0]
-        alpha = tmp / (p.T @ H @ p)[0, 0]
+    while ((r.T @ g)[0, 0] > 1e-16 and iterations < (n_vars - n_constraints)):
+        tmp = (p.T @ H @ p)[0, 0]
+        absOld = (r.T @ g)[0, 0]
+        # Check for negative curvature
+        if tmp < 0:
+            # Solve τ to satisfy 
+            # 
+            #   |x + τp|² = Δ²
+            # 
+            #   (x + τp)ᵀ(x + τp) = Δ²
+            #   τ²pᵀp + τ(2xᵀp) + xᵀx = Δ²
+            # 
+            # This is a quadratic problem
+            # 
+            #   A = pᵀp
+            #   B = 2xᵀp
+            #   C = xᵀx - Δ²
+            A = (p.T @ p)[0, 0]
+            B = 2 * (x.T @ p)[0, 0]
+            C = (x.T @ x)[0, 0] - delta * delta
+            print(np.linalg.norm(x))
+            tau = (-B + sqrt(B * B - 4 * A * C)) / (2 * A)
+            return x + tau * p
+        alpha = absOld / tmp
+        if (np.linalg.norm(x + alpha * p) >= delta):
+            A = (p.T @ p)[0, 0]
+            B = 2 * (x.T @ p)[0, 0]
+            C = (x.T @ x)[0, 0] - delta * delta
+            tau = (-B + sqrt(B * B - 4 * A * C)) / (2 * A)
+            return x + tau * p
         x += alpha * p
         r += alpha * H @ p
-        r -= A.T @ y(r)
-        g = lhs.solve(rhs(r))[0:n_vars]
-        beta = (r.T @ g)[0, 0] / tmp
+        sol = lhs.solve(rhs(r))
+        g = sol[0:n_vars]
+        beta = (r.T @ g)[0, 0] / absOld
         p = -g + beta * p
+        r -= A.T @ sol[n_vars:(n_vars + n_constraints)]
 
         iterations += 1
 

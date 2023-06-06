@@ -5,33 +5,74 @@ from solver.ldlt import LDLT
 import cProfile
 from pstats import Stats, SortKey
 
-N = 1000
+def positive_definite_no_trust_region():
+    print("POSITIVE DEFINITE NO TRUST REGION ------------")
 
-H = np.random.rand(N, N)
-H = H.T @ H + np.identity(N)
-g = np.random.rand(N, 1)
-A = np.random.rand(500, N)
-x0 = np.random.rand(N, 1)
-c = A @ x0
+    N = 1000
 
-n_constraints = A.shape[0]
-n_vars = x0.shape[0]
+    H = np.random.rand(N, N)
+    H = H.T @ H + np.identity(N)
+    g = np.random.rand(N, 1)
+    A = np.random.rand(int(N / 2), N)
+    x0 = np.random.rand(N, 1)
+    c = A @ x0
 
-lhs = np.vstack((
-    np.hstack((H, A.T)), 
-    np.hstack((A, np.zeros((n_constraints, n_constraints))))
-))
-rhs = np.vstack((-g, c))
+    n_constraints = A.shape[0]
+    n_vars = x0.shape[0]
 
-t0 = time.time()
-x = projected_cg(H, g, A, 1, x0)
-t1 = time.time()
-print("CG time: ", (t1 - t0) * 1000, "ms")
+    lhs = np.vstack((
+        np.hstack((H, A.T)), 
+        np.hstack((A, np.zeros((n_constraints, n_constraints))))
+    ))
+    rhs = np.vstack((-g, c))
 
-t2 = time.time()
-sol = np.linalg.solve(lhs, rhs)[0:n_vars]
-t3 = time.time()
-print("Exact time: ", (t3 - t2) * 1000, "ms")
+    t0 = time.time()
+    x = projected_cg(H, g, A, float('inf'), x0)
+    t1 = time.time()
 
-print("CG cost: ", 0.5 * x.T @ H @ x + x.T @ g)
-print("Exact cost: ", 0.5 * sol.T @ H @ sol + sol.T @ g)
+    t2 = time.time()
+    sol = LDLT(lhs).solve(rhs)[0:n_vars]
+    t3 = time.time()
+
+    print("CG time: \t", (t1 - t0) * 1000, "ms")
+    print("Exact time: \t", (t3 - t2) * 1000, "ms")
+    print("CG cost: \t", (0.5 * x.T @ H @ x + x.T @ g)[0, 0])
+    print("Exact cost: \t", (0.5 * sol.T @ H @ sol + sol.T @ g)[0, 0])
+
+def indefinite_trust_region():
+    print("INDEFINITE WITH TRUST REGION ------------")
+
+    H = np.array([[-1, 5], [5, -1]])
+    g = np.array([[1], [1]])
+    A = np.array([[1, 1]])
+    x0 = np.array([[-0.1], [0.2]])
+    c = A @ x0
+
+    n_constraints = A.shape[0]
+    n_vars = x0.shape[0]
+
+    lhs = np.vstack((
+        np.hstack((H, A.T)), 
+        np.hstack((A, np.zeros((n_constraints, n_constraints))))
+    ))
+    rhs = np.vstack((-g, c))
+
+    t0 = time.time()
+    x = projected_cg(H, g, A, 0.5, x0)
+    t1 = time.time()
+
+    t2 = time.time()
+    sol = LDLT(lhs).solve(rhs)[0:n_vars]
+    t3 = time.time()
+
+    print("CG time: \t", (t1 - t0) * 1000, "ms")
+    print("Exact time: \t", (t3 - t2) * 1000, "ms")
+    print("CG cost: \t", (0.5 * x.T @ H @ x + x.T @ g)[0, 0])
+    print("Exact cost: \t", (0.5 * sol.T @ H @ sol + sol.T @ g)[0, 0])
+    print("CG grad: \t", (H @ x + g)[0, 0])
+    print("Exact grad: \t", (H @ sol + g)[0, 0])
+    print("CG x: \n", x)
+    print("Exact x: \n", sol)
+
+positive_definite_no_trust_region()
+indefinite_trust_region()
