@@ -1,4 +1,4 @@
-from solver import Solver
+from solver.solver import Solver
 from sympy import *
 
 solver = Solver()

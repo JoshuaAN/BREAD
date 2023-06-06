@@ -164,9 +164,12 @@ class Solver:
                 s = (-B + sqrt(B * B - 4 * A * C)) / (2 * A)
                 v = delta_sd + s * (delta_gn - t * delta_sd)
 
-            print("Constraint residual: ", np.linalg.norm(A_e @ v + c_e))
+            lhs = np.vstack((np.hstack((np.identity(rows(x)), A_e.T)), np.hstack((A_e, np.zeros((rows(y), rows(y)))))))
+            rhs = np.vstack((-g, A_e @ v))
+
+            p_x = np.linalg.solve(lhs, rhs)[0:rows(x)]
             
-            x += v
+            x += 0.1 * p_x
 
             print("ITERATION ", iteration)
             print("x: \n", x)
