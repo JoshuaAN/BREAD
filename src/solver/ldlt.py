@@ -10,8 +10,6 @@ class LDLT:
             self.perm_inv[self.perm[row]] = row
     
     def solve(self, rhs):
-        P = np.identity(len(self.perm))[self.perm,:]
-
         # Ax = b
         # LDLᵀx = b
         #
