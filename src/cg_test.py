@@ -2,8 +2,10 @@ from solver.projected_conjugate_gradient import projected_cg
 import numpy as np
 import time
 from solver.ldlt import LDLT
+import cProfile
+from pstats import Stats, SortKey
 
-N = 3000
+N = 100
 
 H = np.random.rand(N, N)
 H = H.T @ H + np.identity(N)
@@ -14,7 +16,24 @@ c = A @ x0
 
 t0 = time.time()
 
-x = projected_cg(H, g, A, 1, x0)
+x = None
+
+profile = False
+
+if profile:
+    with cProfile.Profile() as pr:
+        x = projected_cg(H, g, A, 1, x0)
+
+    with open('profiling_stats.txt', 'w') as stream:
+        stats = Stats(pr, stream=stream)
+        stats.strip_dirs()
+        stats.sort_stats('time')
+        stats.dump_stats('.prof_stats')
+        stats.print_stats()
+else:
+    x = projected_cg(H, g, A, 1, x0)
+
+
 
 t1 = time.time()
 

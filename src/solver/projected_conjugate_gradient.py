@@ -3,6 +3,8 @@ from scipy.linalg import cho_factor, cho_solve
 from solver.ldlt import LDLT
 
 def projected_cg(H, g, A, delta, x0):
+    # Profiling show majority of time is spent in LDLT solves
+
     n_constraints = A.shape[0]
     n_vars = x0.shape[0]
     x = x0.astype('float64')
