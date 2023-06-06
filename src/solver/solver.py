@@ -105,7 +105,7 @@ class Solver:
 
         delta = 10
         
-        for i in range(20):
+        for i in range(200):
             c_e = equality(x)
             c_i = inequality(x)
 
@@ -163,6 +163,9 @@ class Solver:
                 C = np.linalg.norm(t * delta_sd, ord=2) - (eta * delta) ** 2
                 s = (-B + sqrt(B * B - 4 * A * C)) / (2 * A)
                 v = delta_sd + s * (delta_gn - t * delta_sd)
+
+            # Projected CG method
+            
 
             lhs = np.vstack((np.hstack((np.identity(rows(x)), A_e.T)), np.hstack((A_e, np.zeros((rows(y), rows(y)))))))
             rhs = np.vstack((-g, A_e @ v))
