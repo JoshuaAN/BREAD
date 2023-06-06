@@ -25,7 +25,7 @@ def projected_cg(H, g, A, delta, x0):
 
     iterations = 0
 
-    while ((r.T @ g)[0, 0] > 1e-6):
+    while ((r.T @ g)[0, 0] > 1e-12 and iterations < (n_vars - n_constraints)):
         tmp = (r.T @ g)[0, 0]
         alpha = tmp / (p.T @ H @ p)[0, 0]
         x += alpha * p
@@ -36,6 +36,5 @@ def projected_cg(H, g, A, delta, x0):
         p = -g + beta * p
 
         iterations += 1
-        print(iterations)
 
     return x
