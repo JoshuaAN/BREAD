@@ -104,22 +104,34 @@ class Solver:
         
         iteration = 0
 
-        delta = 10
+        delta = 1
         
-        for i in range(20):
-            print("ITERATION ", iteration)
-
+        while True:
             c_e = equality(x)
             c_i = inequality(x)
 
             A_e = jacobian_equality(x)
             A_i = jacobian_inequality(x)
 
+            g = gradient_f(x)
+
             # Compute lagrange multipliers to minimize
             # 
-            #   
+            #   |g - Aᵀy|₂
+            #   gᵀg - 2yᵀAg + yᵀAAᵀy
+            #   yᵀAAᵀy - 2yᵀAg
+            # 
+            #   AAᵀy = Ag
+            y = np.linalg.solve(A_e @ A_e.T, A_e @ g)
 
-            g = gradient_f(x)
+            # End if first order optimality conditions are met
+            if (max(
+                np.linalg.norm(g - A_e.T @ y),
+                np.linalg.norm(c_e)
+            ) < 1e-8): break
+
+            print("ITERATION ", iteration)
+
             H = hessian_L(x, y, z)
 
             # Solve trust region subproblem
