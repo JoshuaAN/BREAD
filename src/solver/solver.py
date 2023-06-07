@@ -52,7 +52,7 @@ class Solver:
         yAD = []
         for i in range(len(self.equality_constraints)):
             yAD.append(self.private_variable())
-        y = np.ones((len(yAD), 1))
+        y = 0 * np.ones((len(yAD), 1))
 
         zAD = []
         for i in range(len(self.inequality_constraints)):
@@ -104,18 +104,24 @@ class Solver:
         
         iteration = 0
 
-        delta = 0.5
+        delta = 10
         
-        for i in range(40):
+        for i in range(20):
+            print("ITERATION ", iteration)
+
             c_e = equality(x)
             c_i = inequality(x)
 
             A_e = jacobian_equality(x)
             A_i = jacobian_inequality(x)
 
+            # Compute lagrange multipliers to minimize
+            # 
+            #   
+
             g = gradient_f(x)
             H = hessian_L(x, y, z)
-            
+
             # Solve trust region subproblem
             # 
             #          min ½pᵀHp + pᵀg
@@ -167,10 +173,19 @@ class Solver:
 
             # Projected CG method
             p_x = projected_cg(H, g, A_e, delta, v)
-            
             x += p_x
 
-            print("ITERATION ", iteration)
+            # Newton method
+            # lhs = np.vstack((
+            #     np.hstack((H, -A_e.T)),
+            #     np.hstack((A_e, np.zeros((A_e.shape[0], A_e.shape[0]))))
+            # ))
+            # rhs = np.vstack((
+            #     -g,
+            #     -c_e
+            # ))
+            # x += np.linalg.solve(lhs, rhs)[0:x.shape[0]]
+
             print("x: \n", x)
 
             iteration += 1

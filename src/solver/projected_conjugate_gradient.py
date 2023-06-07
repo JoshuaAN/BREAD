@@ -25,7 +25,7 @@ def projected_cg(H, g, A, delta, x0):
 
     iterations = 0
 
-    while ((r.T @ g)[0, 0] > 1e-12 and iterations < 2 * (n_vars - n_constraints)):
+    while ((r.T @ g)[0, 0] > 1e-24 and iterations < 2 * (n_vars - n_constraints)): #
         tmp = (p.T @ H @ p)[0, 0]
         absOld = (r.T @ g)[0, 0]
         # Check for negative curvature
@@ -66,5 +66,7 @@ def projected_cg(H, g, A, delta, x0):
         r -= A.T @ sol[n_vars:(n_vars + n_constraints)]
 
         iterations += 1
+
+    print("Projected CG - Reached tolerance end condition")
 
     return x
