@@ -104,7 +104,7 @@ class Solver:
         
         iteration = 0
 
-        delta = 1
+        delta = 5.0
         
         while True:
             c_e = equality(x)
@@ -153,7 +153,7 @@ class Solver:
             eta = 0.8
 
             # Add regularization matrix to resolve rank deficiency in A.
-            delta_gn = np.linalg.solve(1e-9 * np.identity(rows(x)) + A_e.T @ A_e, -A_e.T @ c_e)
+            delta_gn = np.linalg.solve(1e-12 * np.identity(rows(x)) + A_e.T @ A_e, -A_e.T @ c_e)
             delta_sd = -A_e.T @ c_e
             t = np.linalg.norm(delta_sd, ord=2) / np.linalg.norm(A_e @ delta_sd, ord=2)
             v = None

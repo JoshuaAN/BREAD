@@ -10,17 +10,17 @@ def projected_cg(H, g, A, delta, x0):
     x = x0.astype('float64')
     # [I  Aᵀ]
     # [A  0 ]
-    lhs = LDLT(np.vstack((
+    lhs = np.vstack((
         np.hstack((np.identity(n_vars), A.T)), 
-        np.hstack((A, 1e-12 * np.identity(n_constraints)))
-    )))
+        np.hstack((A, np.zeros((n_constraints, n_constraints))))
+    ))
     # [r]
     # [0]
     rhs = lambda r: np.vstack((r, np.zeros((n_constraints, 1))))
-    y = lambda r: lhs.solve(rhs(r))[n_vars:(n_vars + n_constraints)]
+    y = lambda r: np.linalg.solve(lhs, (rhs(r)))[n_vars:(n_vars + n_constraints)]
     r = H @ x + g
     r -= A.T @ y(r)
-    g = lhs.solve(rhs(r))[0:n_vars]
+    g = np.linalg.solve(lhs, (rhs(r)))[0:n_vars]
     p = -g
 
     iterations = 0
@@ -59,7 +59,7 @@ def projected_cg(H, g, A, delta, x0):
             return x + tau * p
         x += alpha * p
         r += alpha * H @ p
-        sol = lhs.solve(rhs(r))
+        sol = np.linalg.solve(lhs, (rhs(r)))
         g = sol[0:n_vars]
         beta = (r.T @ g)[0, 0] / absOld
         p = -g + beta * p
