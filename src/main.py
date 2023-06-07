@@ -6,9 +6,9 @@ solver = Solver()
 x = solver.variable()
 y = solver.variable()
 z = 2.5 * x * x + 2.5 * y * y
-solver.subject_to_equality(x * x + y - 1)
+# solver.subject_to_equality(x * x + y - 1)
 # z = -x * y
-# solver.subject_to_equality(x + 3 * y - 36)
+solver.subject_to_equality(x + 3 * y - 36)
 
 # solver.subject_to_inequality(x * x - 1)
 

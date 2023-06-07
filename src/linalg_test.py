@@ -1,5 +1,5 @@
 import numpy as np
-from src.solver.ldlt import LDLT
+from solver.ldlt import LDLT
 
 # LDLT solver and numpy.linalg.solve are returning different results
 
