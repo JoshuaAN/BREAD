@@ -6,12 +6,12 @@ solver = Solver()
 x = solver.variable()
 y = solver.variable()
 # z = 2.5 * x * x + 2.5 * y * y
-solver.subject_to_equality(x * x + y - 1)
+solver.subject_to_equality(x + y - 1)
 z = x * x + y * y
 # solver.subject_to_equality(x + 3 * y - 36)
 
-# solver.subject_to_inequality(x * x - 1)
-
+solver.subject_to_inequality(x - 10)
+# 
 dict = {x: 10.0, y: 3.0}
 
 solver.minimize(z)
