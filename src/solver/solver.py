@@ -2,6 +2,7 @@ from sympy import *
 import numpy as np
 from math import *
 from solver.projected_conjugate_gradient import projected_cg
+from dogleg_method import dogleg
 
 def rows(mat):
     return mat.shape[0]
@@ -58,71 +59,49 @@ class Solver:
         #   subject to cₑ(x) = 0
         #              cᵢ(x) - s = 0
         # 
-        # For simplicity of presentation we define
-        # 
-        #   z = [x]
-        #       [s]
-        # 
-        #   φ(z) = f(x) - μlog(s)
-        # 
-        #   c(z) = [  cₑ(x)  ]
-        #          [cᵢ(x) - s]
-        # 
-        # The barrier problem is rewritten as
-        # 
-        #          min φ(z)
-        #   subject to c(z) = 0
-        # 
         # The iterate step is defined as
         # 
-        #   p = [  dˣ ]
-        #       [S⁻¹dˢ]
+        #   p = [pₓ] = [  dˣ ]
+        #       [pₛ]   [S⁻¹dˢ]
         # 
-        # Constraint Jacobian
-        # 
-        #   A = [Aₑ   0]
-        #       [Aᵢ  −S]
+        #   L(x, s, y, z) = φ(z) − λᵀc(z)
         # 
         # Approximate the objective function and constraints as the quadratic
         # programming problem shown in equation 19.33 of [1].
         #
-        #          min ½pᵀWp + pᵀΦ             (1a)
-        #   subject to Ap + c = 0              (1b)
-        #              ‖p‖ < Δ                 (1c)
-        #              pˢ > −τe                (1d)
+        #          min ½pᵀWp + pᵀΦ                             (1a)
+        #   subject to Aₑvₓ + cₑ = 0                           (1b)
+        #              Aᵢv - Svₛ + cᵢ - s = 0                  (1c)
+        #              ‖p‖ < Δ                                 (1d)
+        #              pˢ > −τe                                (1e)
         #
         # An inexact solution to the subproblem is computed in two stages.
         # A normal step v is computed which attempts to minimize constraint
         # violation within the trust region.
         #
-        #          min ‖Av + c‖                (2a)
-        #   subject to ‖v‖ < ξΔ                (2b)
-        #              vₛ > −ξτe               (2c)
+        #          min ‖Aₑvₓ + cₑ‖² + ‖Aᵢv - Svₛ + cᵢ - s‖²    (2a)
+        #   subject to ‖vₓ, vₛ‖ < ξΔ                           (2b)
+        #              vₛ > −ξτe                               (2c)
         # 
         # The total step p is computed by solving a modified version of (1):
         # 
-        #          min ½pᵀWp + pᵀΦ             (3a)
-        #   subject to Ap = Av              (3b)
-        #              ‖p‖ < Δ                 (3c)
-        #              pˢ > −τe                (3d)
+        #          min ½pᵀWp + pᵀΦ                             (3a)
+        #   subject to Aₑpₓ = Aₑvₓ                             (3b)
+        #              Aᵢpₓ - Spₛ = Aᵢvₓ - Svₛ                 (3c)
+        #              ‖pₓ, pₛ‖ < Δ                            (3d)
+        #              pˢ > −τe                                (3e)
         #
-        # The constraints (1d) and (2c) are equivelent to the "fraction to the
+        # The constraints (1e), (2c), and (3e) are equivalent to the "fraction to the
         # boundary" rule, and are applied by backtracking the solution vector.
         # 
         # https://link.springer.com/content/pdf/10.1007/PL00011391.pdf?pdf=button
-        print("x rows: ", len(self.wrt))
-        print("e rows: ", len(self.equality_constraints))
-        print("i rows: ", len(self.inequality_constraints))
-
         yAD = []
         for i in range(len(self.equality_constraints)):
             yAD.append(self.private_variable())
-        y = 0 * np.ones((len(yAD), 1))
 
         zAD = []
         for i in range(len(self.inequality_constraints)):
             zAD.append(self.private_variable())
-        z = np.ones((len(zAD), 1))
 
         L = self.f
         for multiplier, constraint in zip(yAD, self.equality_constraints):
@@ -131,6 +110,7 @@ class Solver:
             L -= multiplier * constraint
 
         x = self.dict_to_matrix(dict).astype('float64')
+        s = np.ones(len(self.inequality_constraints))
 
         def f(x):
             return self.f.evalf(subs=self.matrix_to_dict(self.wrt, x))
@@ -178,13 +158,20 @@ class Solver:
         delta = 1.0
 
         mu = 1.0
+
+        # Trust region scaling factor ξ
+        xi = 0.8
         
         while True:
-            c_e = equality(x)
-            c_i = inequality(x)
+            c = np.hstack((
+                equality(x),
+                inequality(x) - s
+            ))
 
-            A_e = jacobian_equality(x)
-            A_i = jacobian_inequality(x)
+            A = np.hstack((
+                np.vstack((jacobian_equality(x))),
+                np.vstack((jacobian_inequality(x), -diag(s)))
+            ))
 
             g = gradient_f(x)
 
@@ -196,6 +183,7 @@ class Solver:
             # 
             #   AAᵀy = Ag
             y = np.linalg.solve(A_e @ A_e.T, A_e @ g)
+            z = np.ones(len(self.inequality_constraints))
 
             # End if first order optimality conditions are met
             if (max(
@@ -207,54 +195,7 @@ class Solver:
 
             H = hessian_L(x, y, z)
 
-            # Solve trust region subproblem
-            # 
-            #          min ½pᵀHp + pᵀg
-            #           p
-            #   subject to Ap + c = 0
-            #              |p|₂ < Δ
-
-            # Solve with Powell's dog leg method. 
-            # 
-            #          min |Av + c|₂²
-            #           v
-            #   subject to |p|₂ < ηΔ
-            # 
-            # https://en.wikipedia.org/wiki/Powell%27s_dog_leg_method
-
-            # Trust region scaling factor η
-            eta = 0.8
-
-            # Add regularization matrix to resolve rank deficiency in A.
-            delta_gn = np.linalg.solve(1e-12 * np.identity(rows(x)) + A_e.T @ A_e, -A_e.T @ c_e)
-            delta_sd = -A_e.T @ c_e
-            t = np.linalg.norm(delta_sd, ord=2) / np.linalg.norm(A_e @ delta_sd, ord=2)
-            v = None
-
-            # If Gauss-Newton step is within the trust region, accept it.
-            if np.linalg.norm(delta_gn) < eta * delta:
-                v = delta_gn
-            elif np.linalg.norm(t * delta_sd) > eta * delta:
-                v = eta * delta * delta_sd / np.linalg.norm(delta_sd)
-            else:
-                # Dogleg step
-                # 
-                #   |t𝛿_sd + s(𝛿_gn - t𝛿_sd)|₂ = ηΔ
-                #   |t𝛿_sd + s(𝛿_gn - t𝛿_sd)|₂² = (ηΔ)²
-                #   (t𝛿_sd + s(𝛿_gn - t𝛿_sd))ᵀ(t𝛿_sd + s(𝛿_gn - t𝛿_sd)) = (ηΔ)²
-                #   s²|𝛿_gn - t𝛿_sd|₂² + 2s(t𝛿_sd)ᵀ(𝛿_gn - t𝛿_sd) + |t𝛿_sd|₂² = (ηΔ)²
-                # 
-                # This is a quadratic function
-                # 
-                #   As² + Bs + C = 0
-                #   A = |𝛿_gn - t𝛿_sd|₂²
-                #   B = 2(t𝛿_sd)ᵀ(𝛿_gn - t𝛿_sd)
-                #   C = |t𝛿_sd|₂² - (ηΔ)²
-                A = np.linalg.norm(delta_gn - t * delta_sd, ord=2)
-                B = 2 * ((t * delta_sd).T @ (delta_gn - t * delta_sd))[0, 0]
-                C = np.linalg.norm(t * delta_sd, ord=2) - (eta * delta) ** 2
-                s = (-B + sqrt(B * B - 4 * A * C)) / (2 * A)
-                v = delta_sd + s * (delta_gn - t * delta_sd)
+            v = dogleg(A, c, xi * delta)
 
             p_x = projected_cg(H, g, A_e, delta, v)
 
