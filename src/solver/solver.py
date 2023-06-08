@@ -187,7 +187,7 @@ class Solver:
 
             g = gradient_f(x)
 
-            # AAᵀ[y] = A[]
+            # AAᵀ[y] = Aϕ
             #    [z]
             multipliers = np.linalg.solve(A @ A.T, A @ phi)
             y = multipliers[0:rows(y)]
