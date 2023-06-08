@@ -155,35 +155,51 @@ class Solver:
         
         iteration = 0
 
-        delta = 1.0
-
+        # Barrier parameter μ
         mu = 1.0
+
+        # Trust region size Δ
+        delta = 1.0
 
         # Trust region scaling factor ξ
         xi = 0.8
-        
+
+        # Trust region step acceptance parameter η
+        eta = 1e-8
+
         while True:
-            c = np.hstack((
-                equality(x),
-                inequality(x) - s
+            c_e = equality(x)
+            c_i = inequality(x)
+
+            A_e = jacobian_equality(x)
+            A_i = jacobian_inequality(x)
+
+            # A = [Aₑ  0]
+            #     [Aᵢ -S]
+            A = np.vstack((
+                np.hstack((A_e, np.zeros((A_e.shape[0], A_i.shape[0])))),
+                np.hstack((A_i, -diag(s)))
             ))
 
-            A = np.hstack((
-                np.vstack((jacobian_equality(x))),
-                np.vstack((jacobian_inequality(x), -diag(s)))
-            ))
+            # ϕ = [ ∇f]
+            #     [-μe]
+            phi = np.hstack((g, -mu * e))
 
             g = gradient_f(x)
 
-            # Compute lagrange multipliers to minimize
+            # AAᵀ[y] = A[]
+            #    [z]
+            multipliers = np.linalg.solve(A @ A.T, A @ phi)
+            y = multipliers[0:rows(y)]
+            z = multipliers[rows(y):(rows(y) + rows(z))]
+            
+            # The multiplier estimates z obtained in this manner may not
+            # always be positive; to enforce positivity, we may redefine them as
             # 
-            #   |g - Aᵀy|₂
-            #   gᵀg - 2yᵀAg + yᵀAAᵀy
-            #   yᵀAAᵀy - 2yᵀAg
-            # 
-            #   AAᵀy = Ag
-            y = np.linalg.solve(A_e @ A_e.T, A_e @ g)
-            z = np.ones(len(self.inequality_constraints))
+            #   zᵢ = min(10⁻³, μ/sᵢ)
+            for row in range(rows(z)):
+                if (z[row, 0] <= 0):
+                    z[row, 0] = min(10e-3, mu / s[row, 0])
 
             # End if first order optimality conditions are met
             if (max(
@@ -211,14 +227,13 @@ class Solver:
             pred = -(g.T @ p_x + 0.5 * p_x.T @ H @ p_x - mu * (np.linalg.norm(c_e) - np.linalg.norm(A_e @ p_x + c_e)))[0, 0]
 
             # Accept or reject step and update trust region size.
-            psi = 1e-8
             reduction = ared / pred
             if (reduction < 0.25):
                 delta *= 0.25
             else:
                 if reduction > 0.75 and abs(np.linalg.norm(p_x) - delta) < 1e-12:
                     delta *= 2.0
-            if (ared > psi * pred):
+            if (ared > eta * pred):
                 x += p_x
 
             print("x: \n", x)
