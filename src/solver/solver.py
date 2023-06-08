@@ -7,6 +7,13 @@ from dogleg_method import dogleg
 def rows(mat):
     return mat.shape[0]
 
+def fraction_to_boundary(p_x, tau):
+    alpha = 1.0
+    for row in range(rows(v)):
+        if (p_x[row, 0] < -tau):
+            alpha = min(alpha, -p_x[row, 0] / tau)
+    return alpha
+
 class Solver:
     def __init__(self):
         self.wrt = []
@@ -202,18 +209,22 @@ class Solver:
                     z[row, 0] = min(10e-3, mu / s[row, 0])
 
             # End if first order optimality conditions are met
-            if (max(
-                np.linalg.norm(g - A_e.T @ y),
-                np.linalg.norm(c_e)
-            ) < 1e-8): break
-
-            print("ITERATION ", iteration)
+            # if (max(
+            #     np.linalg.norm(),
+            #     np.linalg.norm(c_e)
+            # ) < 1e-8): break
 
             H = hessian_L(x, y, z)
 
-            v = dogleg(A, c, xi * delta)
+            # c = [  cₑ  ]
+            #     [cᵢ - s]
+            c = np.hstack((c_e, c_i - s))
 
-            p_x = projected_cg(H, g, A_e, delta, v)
+            dogleg_step = dogleg(A, c, xi * delta)
+            v_s = dogleg_step[rows(x):(rows(x) + rows(s))]
+            dogleg_step *= fraction_to_boundary(v_s, xi * tau)
+
+            p_x = projected_cg(H, g, A_e, delta, dogleg_step)
 
             # Update penalty parameter
             # 
@@ -236,6 +247,8 @@ class Solver:
             if (ared > eta * pred):
                 x += p_x
 
+            # Diagnostics
+            print("ITERATION ", iteration)
             print("x: \n", x)
 
             iteration += 1
