@@ -45,6 +45,71 @@ class Solver:
         return dict
 
     def solve(self, dict):
+        # Solves problem of the form
+        # 
+        #          min f(x)
+        #   subject to cₑ(x) = 0
+        #              cᵢ(x) ≥ 0
+        # 
+        # The interior point method is used to transform the inequality 
+        # constraints into equality constraints.
+        # 
+        #          min f(x) - μlog(s)
+        #   subject to cₑ(x) = 0
+        #              cᵢ(x) - s = 0
+        # 
+        # For simplicity of presentation we define
+        # 
+        #   z = [x]
+        #       [s]
+        # 
+        #   φ(z) = f(x) - μlog(s)
+        # 
+        #   c(z) = [  cₑ(x)  ]
+        #          [cᵢ(x) - s]
+        # 
+        # The barrier problem is rewritten as
+        # 
+        #          min φ(z)
+        #   subject to c(z) = 0
+        # 
+        # The iterate step is defined as
+        # 
+        #   p = [  dˣ ]
+        #       [S⁻¹dˢ]
+        # 
+        # Constraint Jacobian
+        # 
+        #   A = [Aₑ   0]
+        #       [Aᵢ  −S]
+        # 
+        # Approximate the objective function and constraints as the quadratic
+        # programming problem shown in equation 19.33 of [1].
+        #
+        #          min ½pᵀWp + pᵀΦ             (1a)
+        #   subject to Ap + c = 0              (1b)
+        #              ‖p‖ < Δ                 (1c)
+        #              pˢ > −τe                (1d)
+        #
+        # An inexact solution to the subproblem is computed in two stages.
+        # A normal step v is computed which attempts to minimize constraint
+        # violation within the trust region.
+        #
+        #          min ‖Av + c‖                (2a)
+        #   subject to ‖v‖ < ξΔ                (2b)
+        #              vₛ > −ξτe               (2c)
+        # 
+        # The total step p is computed by solving a modified version of (1):
+        # 
+        #          min ½pᵀWp + pᵀΦ             (3a)
+        #   subject to Ap = Av              (3b)
+        #              ‖p‖ < Δ                 (3c)
+        #              pˢ > −τe                (3d)
+        #
+        # The constraints (1d) and (2c) are equivelent to the "fraction to the
+        # boundary" rule, and are applied by backtracking the solution vector.
+        # 
+        # https://link.springer.com/content/pdf/10.1007/PL00011391.pdf?pdf=button
         print("x rows: ", len(self.wrt))
         print("e rows: ", len(self.equality_constraints))
         print("i rows: ", len(self.inequality_constraints))
