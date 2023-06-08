@@ -67,6 +67,9 @@ class Solver:
 
         x = self.dict_to_matrix(dict).astype('float64')
 
+        def f(x):
+            return self.f.evalf(subs=self.matrix_to_dict(self.wrt, x))
+
         def gradient_f(x):
             vars = self.matrix_to_dict(self.wrt, x)
             g = np.matrix([self.f.diff(var).evalf(subs=vars) for var in self.wrt])
@@ -102,9 +105,14 @@ class Solver:
             symbolic_jacobian = Matrix(self.inequality_constraints).jacobian(self.wrt)
             return np.array(symbolic_jacobian.evalf(subs=vars)).astype('float64')
         
+        def merit_function(x, v):
+            return f(x) + v * np.linalg.norm(equality(x))
+        
         iteration = 0
 
-        delta = 5.0
+        delta = 1.0
+
+        mu = 1.0
         
         while True:
             c_e = equality(x)
@@ -183,20 +191,29 @@ class Solver:
                 s = (-B + sqrt(B * B - 4 * A * C)) / (2 * A)
                 v = delta_sd + s * (delta_gn - t * delta_sd)
 
-            # Projected CG method
             p_x = projected_cg(H, g, A_e, delta, v)
-            x += p_x
 
-            # Newton method
-            # lhs = np.vstack((
-            #     np.hstack((H, -A_e.T)),
-            #     np.hstack((A_e, np.zeros((A_e.shape[0], A_e.shape[0]))))
-            # ))
-            # rhs = np.vstack((
-            #     -g,
-            #     -c_e
-            # ))
-            # x += np.linalg.solve(lhs, rhs)[0:x.shape[0]]
+            # Update penalty parameter
+            # 
+            # TODO: Add math docs... this all seems kinda sketch
+            rho = 0.1
+            mu_lhs = -(g.T @ p_x + 0.5 * p_x.T @ H @ p_x)[0, 0]
+            mu_rhs = (rho - 1.0) * (np.linalg.norm(c_e) - np.linalg.norm(A_e @ p_x + c_e))
+            mu = max(mu, mu_lhs / mu_rhs)
+            
+            ared = merit_function(x, mu) - merit_function(x + p_x, mu)
+            pred = -(g.T @ p_x + 0.5 * p_x.T @ H @ p_x - mu * (np.linalg.norm(c_e) - np.linalg.norm(A_e @ p_x + c_e)))[0, 0]
+
+            # Accept or reject step and update trust region size.
+            psi = 1e-8
+            reduction = ared / pred
+            if (reduction < 0.25):
+                delta *= 0.25
+            else:
+                if reduction > 0.75 and abs(np.linalg.norm(p_x) - delta) < 1e-12:
+                    delta *= 2.0
+            if (ared > psi * pred):
+                x += p_x
 
             print("x: \n", x)
 
