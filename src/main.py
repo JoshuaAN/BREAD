@@ -5,10 +5,10 @@ solver = Solver()
 
 x = solver.variable()
 y = solver.variable()
-solver.subject_to_equality(x + y - 1)
+solver.subject_to_equality(x * x + y - 1)
 z = x * x + y * y
 
-solver.subject_to_inequality(x - 10)
+solver.subject_to_inequality(y + 5)
 # 
 dict = {x: 11.0, y: 3.0}
 
