@@ -27,6 +27,7 @@ def projected_cg(H, c, A, delta, x0):
     iterations = 0
 
     while ((r.T @ g)[0, 0] > 1e-24 and iterations < 2 * (n_vars - n_constraints)): #
+        print("c norm: ", np.linalg.norm(A @ x))
         tmp = (p.T @ H @ p)[0, 0]
         absOld = (r.T @ g)[0, 0]
         # Check for negative curvature
@@ -44,9 +45,9 @@ def projected_cg(H, c, A, delta, x0):
             #   B = 2xᵀp
             #   C = xᵀx - Δ²
             print("Projected CG - Negative curvature end condition")
-            A = (p.T @ p)[0, 0]
-            B = 2 * (x.T @ p)[0, 0]
-            C = (x.T @ x)[0, 0] - delta * delta
+            _A = (p.T @ p)[0, 0]
+            _B = 2 * (x.T @ p)[0, 0]
+            _C = (x.T @ x)[0, 0] - delta * delta
             tau = (-_B + sqrt(_B * _B - 4 * _A * _C)) / (2 * _A)
             return x + tau * p
         alpha = absOld / tmp
@@ -67,6 +68,8 @@ def projected_cg(H, c, A, delta, x0):
         r -= A.T @ sol[n_vars:(n_vars + n_constraints)]
 
         iterations += 1
+
+    print("c norm: ", np.linalg.norm(A @ x))
 
     print("Projected CG - Reached tolerance end condition")
 

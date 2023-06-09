@@ -164,6 +164,12 @@ class Solver:
             symbolic_jacobian = Matrix(self.inequality_constraints).jacobian(self.wrt)
             return np.array(symbolic_jacobian.evalf(subs=vars)).astype('float64')
         
+        def objective_function(x, s, mu):
+            merit = f(x)
+            for row in range(rows(s)):
+                merit -= mu * ln(s[row, 0])
+            return merit
+        
         def merit_function(x, s, v, mu):
             merit = f(x) + v * hypot(np.linalg.norm(equality(x)), np.linalg.norm(inequality(x) - s))
             for row in range(rows(s)):
@@ -194,9 +200,9 @@ class Solver:
 
         tau_min = tau
 
-        while E > 1e-8:
+        while E > 1e-12:
             while E > mu:
-                print("ITERATION ", iteration)
+                print("ITERATION ", iteration, "-----------------------------")
 
                 c_e = equality(x)
                 c_i = inequality(x)
@@ -238,6 +244,10 @@ class Solver:
                     np.linalg.norm(c_e),
                     np.linalg.norm(c_i - s),
                 )
+                print("Lagrangian: ", np.linalg.norm(g - A_e.T @ y - A_i.T @ z))
+                print("Peturbed: ", np.linalg.norm(dia(s) @ z - mu * e))
+                print("Equality: ", np.linalg.norm(c_e))
+                print("Inequality: ", np.linalg.norm(c_i - s))
 
                 H = hessian_L(x, y, z)
 
@@ -261,7 +271,11 @@ class Solver:
                 p = projected_cg(W, phi, A, delta, dogleg_step)
                 p_s = p[rows(x):(rows(x) + rows(s))]
 
+                print("pre boundary violation: ", np.linalg.norm(A @ p + c))
+
                 p *= fraction_to_boundary(p_s, tau)
+
+                print("post boundary violation: ", np.linalg.norm(A @ p + c))
 
                 p_x = p[0:rows(x)]
                 p_s = p[rows(x):(rows(x) + rows(s))]
@@ -273,13 +287,21 @@ class Solver:
                 v_lhs = -(phi.T @ p + 0.5 * p.T @ W @ p)[0, 0]
                 v_rhs = (rho - 1.0) * (np.linalg.norm(c) - np.linalg.norm(A @ p + c))
                 v = max(v, v_lhs / v_rhs)
-                
+
                 ared = merit_function(x, s, v, mu) - merit_function(x + p_x, s + dia(s) @ p_s, v, mu)
                 pred = -(phi.T @ p + 0.5 * p.T @ W @ p - v * (np.linalg.norm(c) - np.linalg.norm(A @ p + c)))[0, 0]
+                
+                if (np.linalg.norm(A @ p + c) < 1e-10):
+                    ared = objective_function(x, s, mu) - objective_function(x + p_x, s + dia(s) @ p_s, mu)
+                    pred = -(phi.T @ p + 0.5 * p.T @ W @ p)
 
-                # print("ared: ", ared)
-                # print("pred: ", pred)
-                # print("delta: ", delta)
+                print("ared: ", ared)
+                print("pred: ", pred)
+                print("pred f: ", -(phi.T @ p + 0.5 * p.T @ W @ p)[0, 0])
+                print("c: ", np.linalg.norm(c))
+                print("pred c: ", np.linalg.norm(A @ p + c))
+                print("pred c: ", np.linalg.norm(A @ dogleg_step + c))
+                print("delta: ", delta)
 
                 # Accept or reject step and update trust region size.
                 reduction = ared / pred
@@ -289,12 +311,17 @@ class Solver:
                     if reduction > 0.75 and abs(np.linalg.norm(p) - delta) < 1e-12:
                         delta *= 2.0
                 if (ared > eta * pred):
+                    print("Accepted step")
                     x += p_x
                     s += dia(s) @ p_s
 
                 # Diagnostics
-                # print("x: \n", x)
-                # print("s: \n", s)
+                print("x: \n", x)
+
+                print("s: \n", s)
+
+                print("mu: ", mu)
+
 
                 iteration += 1
 
@@ -304,8 +331,10 @@ class Solver:
             # nu = smallest_product / ((s.T @ z)[0, 0] / rows(s))
             # alpha = 0.1 * min(0.05 * )
 
-            mu *= 0.1
+            mu *= 0.2
+            # mu = max(1e-120, 0.2 * (s.T @ z)[0, 0] / rows(s))
 
-            tau = max(tau_min, 1 - mu)
+
+            # tau = max(tau_min, 1 - mu)
 
         print(x)
