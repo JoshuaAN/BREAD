@@ -173,7 +173,7 @@ class Solver:
         iteration = 0
 
         # Barrier parameter μ
-        mu = 0.1
+        mu = 0.00000001
 
         # Trust region size Δ
         delta = 1.0
@@ -245,6 +245,8 @@ class Solver:
             v_s = dogleg_step[rows(x):(rows(x) + rows(s))]
             dogleg_step *= fraction_to_boundary(v_s, xi * tau)
 
+            print("dogleg norm: ", np.linalg.norm(dogleg_step))
+
             # W = [H   0]
             #     [0  SZ]
             W = np.vstack((
@@ -272,8 +274,8 @@ class Solver:
             ared = merit_function(x, s, v, mu) - merit_function(x + p_x, s + dia(s) @ p_s, v, mu)
             pred = -(phi.T @ p + 0.5 * p.T @ W @ p - v * (np.linalg.norm(c) - np.linalg.norm(A @ p + c)))[0, 0]
 
-            print("ared: ", ared)
-            print("pred: ", pred)
+            # print("ared: ", ared)
+            # print("pred: ", pred)
 
             print("delta: ", delta)
 
