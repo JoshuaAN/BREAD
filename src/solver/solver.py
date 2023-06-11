@@ -1,11 +1,16 @@
 from sympy import *
 import numpy as np
 from math import *
-from solver.projected_conjugate_gradient import projected_cg
-from solver.dogleg_method import dogleg
+from solver.qp_solver import solve_qp
 
 def rows(mat):
     return mat.shape[0]
+
+def infinity_norm(vec):
+    norm = 0
+    for row in range(vec.shape[0]):
+        norm = max(norm, abs(vec[row, 0]))
+    return norm
 
 def fraction_to_boundary(p_x, tau):
     alpha = 1.0
@@ -123,8 +128,8 @@ class Solver:
             L -= multiplier * constraint
 
         x = self.dict_to_matrix(dict).astype('float64')
-        s = np.ones((len(self.inequality_constraints), 1))
-        e = np.ones((len(self.inequality_constraints), 1))
+        y = np.ones((len(self.equality_constraints), 1))
+        z = np.ones((len(self.inequality_constraints), 1))
 
         def f(x):
             return self.f.evalf(subs=self.matrix_to_dict(self.wrt, x))
@@ -172,25 +177,7 @@ class Solver:
         
         iteration = 0
 
-        # Barrier parameter μ
-        mu = 0.00000001
-
-        # Trust region size Δ
-        delta = 1.0
-
-        # Trust region scaling factor ξ
-        xi = 0.8
-
-        # Trust region step acceptance parameter η
-        eta = 1e-8
-
-        # Penalty parameter v
-        v = 1.0
-
-        # 
-        tau = 0.995
-
-        for ite in range(50):
+        while True:
             print("ITERATION ", iteration)
 
             c_e = equality(x)
@@ -199,100 +186,42 @@ class Solver:
             A_e = jacobian_equality(x)
             A_i = jacobian_inequality(x)
 
-            # A = [Aₑ  0]
-            #     [Aᵢ -S]
-            A = np.vstack((
-                np.hstack((A_e, np.zeros((A_e.shape[0], A_i.shape[0])))),
-                np.hstack((A_i, -dia(s)))
-            ))
-
             g = gradient_f(x)
-
-            # ϕ = [ ∇f]
-            #     [-μe]
-            phi = np.vstack((g, -mu * e))
-
-            # AAᵀ[y] = Aϕ
-            #    [z]
-            multipliers = np.linalg.solve(A @ A.T, A @ phi)
-            y = multipliers[0:rows(c_e)]
-            z = multipliers[rows(c_e):(rows(c_e) + rows(c_i))]
-            
-            # The multiplier estimates z obtained in this manner may not
-            # always be positive; to enforce positivity, we may redefine them as
-            # 
-            #   zᵢ = min(10⁻³, μ/sᵢ)
-            for row in range(rows(z)):
-                if (z[row, 0] <= 0):
-                    z[row, 0] = min(10e-3, mu / s[row, 0])
-
-            # End if first order optimality conditions are met
-            # if (max(
-            #     np.linalg.norm(),
-            #     np.linalg.norm(c_e)
-            # ) < 1e-8): break
-
             H = hessian_L(x, y, z)
 
-            # c = [  cₑ  ]
-            #     [cᵢ - s]
-            c = np.vstack((c_e, c_i - s))
+            # Convergence test
+            inequality_error = 0
+            for row in range(len(self.inequality_constraints)):
+                inequality_error = max(inequality_error, -c_i[row, 0])
+            E = max(
+                infinity_norm(g - A_e.T @ y - A_i.T @ z),
+                infinity_norm(c_e),
+                inequality_error
+            )
+            if (E < 1e-8):
+                break
 
-            print(c)
-
-            # Solve (2)
-            dogleg_step = dogleg(A, c, xi * delta)
-            v_s = dogleg_step[rows(x):(rows(x) + rows(s))]
-            dogleg_step *= fraction_to_boundary(v_s, xi * tau)
-
-            print("dogleg norm: ", np.linalg.norm(dogleg_step))
-
-            # W = [H   0]
-            #     [0  SZ]
-            W = np.vstack((
-                np.hstack((H, np.zeros((rows(x), rows(s))))),
-                np.hstack((np.zeros((rows(s), rows(x))), dia(s) @ dia(z)))
-            ))
-
-            # Solve (3)
-            p = projected_cg(W, phi, A, delta, dogleg_step)
-            p_s = p[rows(x):(rows(x) + rows(s))]
-
-            p *= fraction_to_boundary(p_s, tau)
-
-            p_x = p[0:rows(x)]
-            p_s = p[rows(x):(rows(x) + rows(s))]
-
-            # Update penalty parameter
-            # 
-            # TODO: Add math docs... this all seems kinda sketch
-            rho = 0.1
-            v_lhs = -(phi.T @ p + 0.5 * p.T @ W @ p)[0, 0]
-            v_rhs = (rho - 1.0) * (np.linalg.norm(c) - np.linalg.norm(A @ p + c))
-            v = max(v, v_lhs / v_rhs)
-            
-            ared = merit_function(x, s, v, mu) - merit_function(x + p_x, s + dia(s) @ p_s, v, mu)
-            pred = -(phi.T @ p + 0.5 * p.T @ W @ p - v * (np.linalg.norm(c) - np.linalg.norm(A @ p + c)))[0, 0]
-
-            # print("ared: ", ared)
-            # print("pred: ", pred)
-
-            print("delta: ", delta)
-
-            # Accept or reject step and update trust region size.
-            reduction = ared / pred
-            print(reduction)
-            if (reduction < 0.25):
-                delta *= 0.25
+            # Regularize Hessian if not positive definite.
+            beta = 1e-3
+            tau = None
+            min_dia = min(np.diag(H))
+            B = None
+            if (min_dia > 0):
+                tau = 0
             else:
-                if reduction > 0.75 and abs(np.linalg.norm(p) - delta) < 1e-12:
-                    delta *= 2.0
-            if (ared > eta * pred):
-                x += p_x
-                s += dia(s) @ p_s
+                tau = -min_dia + beta
+            while True:
+                B = H + tau * np.identity(rows(x))
+                if (min(np.linalg.eig(B)[0]) > 0):
+                    break
+                else:
+                    tau = max(10 * tau, beta)
+
+            p_x, y, z = solve_qp(B, g, A_e, A_i, c_e, c_i, np.zeros((rows(x), 1)))
+
+            x += p_x
 
             # Diagnostics
             print("x: \n", x)
-            print("s: \n", s)
 
             iteration += 1
