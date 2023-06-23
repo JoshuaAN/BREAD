@@ -1,6 +1,7 @@
 import numpy as np
 from solver import *
 
+
 def main():
     N = 2
 
@@ -48,8 +49,12 @@ def main():
     for i in range(N):
         solver.subject_to_equality(vl[i + 1] - (vl[i] + dt * al[i]))
         solver.subject_to_equality(vr[i + 1] - (vr[i] + dt * ar[i]))
-        solver.subject_to_equality(x[i + 1] - (x[i] + dt * cos(theta[i]) * (vl[i] + vr[i]) / 2.0))
-        solver.subject_to_equality(y[i + 1] - (y[i] + dt * sin(theta[i]) * (vl[i] + vr[i]) / 2.0))
+        solver.subject_to_equality(
+            x[i + 1] - (x[i] + dt * cos(theta[i]) * (vl[i] + vr[i]) / 2.0)
+        )
+        solver.subject_to_equality(
+            y[i + 1] - (y[i] + dt * sin(theta[i]) * (vl[i] + vr[i]) / 2.0)
+        )
         solver.subject_to_equality(theta[i + 1] - (theta[i] + dt * (vr[i] - vl[i])))
 
     solver.subject_to_equality(x[0])
@@ -63,5 +68,6 @@ def main():
     solver.minimize(T)
 
     solver.solve(dict)
+
 
 main()

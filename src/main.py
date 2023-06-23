@@ -9,7 +9,7 @@ solver.subject_to_equality(x * x + y - 1)
 z = x * x + y * y
 
 solver.subject_to_inequality(y + 5)
-# 
+#
 dict = {x: 11.0, y: 3.0}
 
 solver.minimize(z)

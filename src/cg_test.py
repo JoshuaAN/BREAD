@@ -6,6 +6,7 @@ import cProfile
 from pstats import Stats, SortKey
 import random
 
+
 def positive_definite_no_trust_region():
     print("POSITIVE DEFINITE NO TRUST REGION ------------")
 
@@ -21,14 +22,13 @@ def positive_definite_no_trust_region():
     n_constraints = A.shape[0]
     n_vars = x0.shape[0]
 
-    lhs = np.vstack((
-        np.hstack((H, A.T)), 
-        np.hstack((A, np.zeros((n_constraints, n_constraints))))
-    ))
+    lhs = np.vstack(
+        (np.hstack((H, A.T)), np.hstack((A, np.zeros((n_constraints, n_constraints)))))
+    )
     rhs = np.vstack((-g, c))
 
     t0 = time.time()
-    x = projected_cg(H, g, A, float('inf'), x0)
+    x = projected_cg(H, g, A, float("inf"), x0)
     t1 = time.time()
 
     t2 = time.time()
@@ -39,6 +39,7 @@ def positive_definite_no_trust_region():
     print("Exact time: \t", (t3 - t2) * 1000, "ms")
     print("CG cost: \t", (0.5 * x.T @ H @ x + x.T @ g)[0, 0])
     print("Exact cost: \t", (0.5 * sol.T @ H @ sol + sol.T @ g)[0, 0])
+
 
 def indefinite_trust_region():
     print("INDEFINITE WITH TRUST REGION ------------")
@@ -52,10 +53,9 @@ def indefinite_trust_region():
     n_constraints = A.shape[0]
     n_vars = x0.shape[0]
 
-    lhs = np.vstack((
-        np.hstack((H, A.T)), 
-        np.hstack((A, np.zeros((n_constraints, n_constraints))))
-    ))
+    lhs = np.vstack(
+        (np.hstack((H, A.T)), np.hstack((A, np.zeros((n_constraints, n_constraints)))))
+    )
     rhs = np.vstack((-g, c))
 
     t0 = time.time()
@@ -74,6 +74,7 @@ def indefinite_trust_region():
     print("Exact grad: \t", (H @ sol + g)[0, 0])
     print("CG x: \n", x)
     print("Exact x: \n", sol)
+
 
 positive_definite_no_trust_region()
 # indefinite_trust_region()

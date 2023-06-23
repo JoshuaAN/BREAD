@@ -1,5 +1,6 @@
 import numpy as np
 
+
 def RK4(f, x, u, h):
     k1 = f(x, u)
     k2 = f(x + h * 0.5 * k1, u)
@@ -7,6 +8,7 @@ def RK4(f, x, u, h):
     k4 = f(x + h * k3, u)
 
     return x + h / 6.0 * (k1 + 2.0 * k2 + 2.0 * k3 + k4)
+
 
 def cart_pole_dynamics(x, u):
     # https://underactuated.mit.edu/acrobot.html#cart_pole
@@ -36,5 +38,3 @@ def cart_pole_dynamics(x, u):
     m_p = 0.5
     l = 0.5
     g = 9.806
-
-    q = 
